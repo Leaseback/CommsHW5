@@ -24,32 +24,32 @@ class CustomLAN(Topo):
         rC = self.addNode('rC', cls=Router)
 
         # Add switches
-        sA = self.addSwitch('sA')  # LAN A
-        sB = self.addSwitch('sB')  # LAN B
-        sC = self.addSwitch('sC')  # LAN C
+        s1 = self.addSwitch('s1')  # LAN A
+        s2 = self.addSwitch('s2')  # LAN B
+        s3 = self.addSwitch('s3')  # LAN C
 
         # LAN A: 20.10.172.128/26
         for i in range(1, 4):
             ip = f'20.10.172.{128 + i}/26'
             self.addHost(f'hA{i}', ip=ip, defaultRoute='via 20.10.172.129')
-            self.addLink(f'hA{i}', sA)
+            self.addLink(f'hA{i}', s1)
 
         # LAN B: 20.10.172.0/25
         for i in range(1, 4):
             ip = f'20.10.172.{1 + i}/25'
             self.addHost(f'hB{i}', ip=ip, defaultRoute='via 20.10.172.1')
-            self.addLink(f'hB{i}', sB)
+            self.addLink(f'hB{i}', s2)
 
         # LAN C: 20.10.172.192/27
         for i in range(1, 3):
             ip = f'20.10.172.{192 + i}/27'
             self.addHost(f'hC{i}', ip=ip, defaultRoute='via 20.10.172.193')
-            self.addLink(f'hC{i}', sC)
+            self.addLink(f'hC{i}', s3)
 
         # Connect routers to their LAN switches
-        self.addLink(rA, sA, intfName1='rA-eth0')  # LAN A
-        self.addLink(rB, sB, intfName1='rB-eth0')  # LAN B
-        self.addLink(rC, sC, intfName1='rC-eth0')  # LAN C
+        self.addLink(rA, s1, intfName1='rA-eth0')  # LAN A
+        self.addLink(rB, s2, intfName1='rB-eth0')  # LAN B
+        self.addLink(rC, s3, intfName1='rC-eth0')  # LAN C
 
         # Inter-router links (on 20.10.100.0/24)
         self.addLink(rA, rB, intfName1='rA-eth1', intfName2='rB-eth1')
