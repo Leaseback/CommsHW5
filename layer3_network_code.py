@@ -5,106 +5,104 @@ from mininet.cli import CLI
 from mininet.link import TCLink
 from mininet.log import setLogLevel
 
+# Custom Node class to enable IP forwarding on routers
+class Router(Node):
+    def config(self, **params):
+        super(Router, self).config(**params)
+        self.cmd('sysctl -w net.ipv4.ip_forward=1')
+
+    def terminate(self):
+        self.cmd('sysctl -w net.ipv4.ip_forward=0')
+        super(Router, self).terminate()
+
 
 class CustomLAN(Topo):
     def build(self):
-        # Add routers
-        rA = self.addHost('rA', ip='20.10.172.1/25')  # Router A
-        rB = self.addHost('rB', ip='20.10.172.129/26')  # Router B
-        rC = self.addHost('rC', ip='20.10.172.193/27')  # Router C
+        # Add routers (as custom nodes)
+        rA = self.addNode('rA', cls=Router)
+        rB = self.addNode('rB', cls=Router)
+        rC = self.addNode('rC', cls=Router)
 
-        # Add switches for each LAN
-        s1 = self.addSwitch('s1')  # LAN B (/25)
-        s2 = self.addSwitch('s2')  # LAN A (/26)
-        s3 = self.addSwitch('s3')  # LAN C (/27)
-
-        # LAN B: 20.10.172.0/25
-        for i in range(1, 4):
-            ip = f'20.10.172.{i}/25'
-            host = self.addHost(f'hB{i}', ip=ip)
-            self.addLink(host, s1)
+        # Add switches
+        sA = self.addSwitch('sA')  # LAN A
+        sB = self.addSwitch('sB')  # LAN B
+        sC = self.addSwitch('sC')  # LAN C
 
         # LAN A: 20.10.172.128/26
         for i in range(1, 4):
             ip = f'20.10.172.{128 + i}/26'
-            host = self.addHost(f'hA{i}', ip=ip)
-            self.addLink(host, s2)
+            self.addHost(f'hA{i}', ip=ip, defaultRoute='via 20.10.172.129')
+            self.addLink(f'hA{i}', sA)
+
+        # LAN B: 20.10.172.0/25
+        for i in range(1, 4):
+            ip = f'20.10.172.{1 + i}/25'
+            self.addHost(f'hB{i}', ip=ip, defaultRoute='via 20.10.172.1')
+            self.addLink(f'hB{i}', sB)
 
         # LAN C: 20.10.172.192/27
         for i in range(1, 3):
             ip = f'20.10.172.{192 + i}/27'
-            host = self.addHost(f'hC{i}', ip=ip)
-            self.addLink(host, s3)
+            self.addHost(f'hC{i}', ip=ip, defaultRoute='via 20.10.172.193')
+            self.addLink(f'hC{i}', sC)
 
-        # Connect routers to switches
-        self.addLink(rA, s1)  # rA to LAN B
-        self.addLink(rA, s2)  # rA to LAN A
-        self.addLink(rB, s2)  # rB to LAN A
-        self.addLink(rB, s3)  # rB to LAN C
-        self.addLink(rC, s3)  # rC to LAN C
-        self.addLink(rC, s1)  # rC to LAN B
+        # Connect routers to their LAN switches
+        self.addLink(rA, sA, intfName1='rA-eth0')  # LAN A
+        self.addLink(rB, sB, intfName1='rB-eth0')  # LAN B
+        self.addLink(rC, sC, intfName1='rC-eth0')  # LAN C
+
+        # Inter-router links (on 20.10.100.0/24)
+        self.addLink(rA, rB, intfName1='rA-eth1', intfName2='rB-eth1')
+        self.addLink(rB, rC, intfName1='rB-eth2', intfName2='rC-eth1')
+        self.addLink(rA, rC, intfName1='rA-eth2', intfName2='rC-eth2')
 
 
 def run():
     topo = CustomLAN()
-    net = Mininet(topo=topo, link=TCLink)
+    net = Mininet(topo=topo, link=TCLink, controller=None)
     net.start()
 
-    # Set routes on the routers
-    rA = net.get('rA')
-    rB = net.get('rB')
-    rC = net.get('rC')
+    # Assign IPs to router interfaces
+    rA, rB, rC = net.get('rA', 'rB', 'rC')
 
-    # Add routes on routers
-    print("\n=== Setting routes on routers ===")
-    rA.cmd('route add -net 20.10.172.0 netmask 255.255.255.128 gw 20.10.172.2')  # Route to LAN B
-    rA.cmd('route add -net 20.10.172.192 netmask 255.255.255.224 gw 20.10.172.3')  # Route to LAN C
+    # LAN interfaces
+    rA.setIP('20.10.172.129/26', intf='rA-eth0')
+    rB.setIP('20.10.172.1/25', intf='rB-eth0')
+    rC.setIP('20.10.172.193/27', intf='rC-eth0')
 
-    rB.cmd('route add -net 20.10.172.0 netmask 255.255.255.128 gw 20.10.172.1')  # Route to LAN B
-    rB.cmd('route add -net 20.10.172.192 netmask 255.255.255.224 gw 20.10.172.3')  # Route to LAN C
+    # Inter-router interfaces
+    rA.setIP('20.10.100.1/24', intf='rA-eth1')  # to B
+    rB.setIP('20.10.100.2/24', intf='rB-eth1')  # to A
 
-    rC.cmd('route add -net 20.10.172.0 netmask 255.255.255.128 gw 20.10.172.1')  # Route to LAN B
-    rC.cmd('route add -net 20.10.172.128 netmask 255.255.255.192 gw 20.10.172.2')  # Route to LAN A
+    rB.setIP('20.10.100.3/24', intf='rB-eth2')  # to C
+    rC.setIP('20.10.100.4/24', intf='rC-eth1')  # to B
 
-    # Set routes on the hosts
-    print("\n=== Setting routes on hosts ===")
-    # LAN A hosts
-    for i in range(1, 4):
-        host = net.get(f'hA{i}')
-        host.cmd(f'route add -net 20.10.172.0 netmask 255.255.255.128 gw 20.10.172.1')  # Gateway to LAN B
-        host.cmd(f'route add -net 20.10.172.192 netmask 255.255.255.224 gw 20.10.172.3')  # Gateway to LAN C
+    rA.setIP('20.10.100.5/24', intf='rA-eth2')  # to C
+    rC.setIP('20.10.100.6/24', intf='rC-eth2')  # to A
 
-    # LAN B hosts
-    for i in range(1, 4):
-        host = net.get(f'hB{i}')
-        host.cmd(f'route add -net 20.10.172.128 netmask 255.255.255.192 gw 20.10.172.2')  # Gateway to LAN A
-        host.cmd(f'route add -net 20.10.172.192 netmask 255.255.255.224 gw 20.10.172.3')  # Gateway to LAN C
+    # Set routes between routers
+    rA.cmd('ip route add 20.10.172.0/25 via 20.10.100.2')     # To LAN B via rB
+    rA.cmd('ip route add 20.10.172.192/27 via 20.10.100.6')   # To LAN C via rC
 
-    # LAN C hosts
-    for i in range(1, 3):
-        host = net.get(f'hC{i}')
-        host.cmd(f'route add -net 20.10.172.0 netmask 255.255.255.128 gw 20.10.172.1')  # Gateway to LAN B
-        host.cmd(f'route add -net 20.10.172.128 netmask 255.255.255.192 gw 20.10.172.2')  # Gateway to LAN A
+    rB.cmd('ip route add 20.10.172.128/26 via 20.10.100.1')   # To LAN A via rA
+    rB.cmd('ip route add 20.10.172.192/27 via 20.10.100.4')   # To LAN C via rC
 
-    # Test connectivity within each LAN (Ping)
-    print("\n=== Testing connectivity within each LAN ===\n")
-    print("LAN B:")
-    net.ping([net.get('hB1'), net.get('hB2'), net.get('hB3')])
+    rC.cmd('ip route add 20.10.172.128/26 via 20.10.100.5')   # To LAN A via rA
+    rC.cmd('ip route add 20.10.172.0/25 via 20.10.100.3')     # To LAN B via rB
 
-    print("\nLAN A:")
+    # Test
+    print("\n=== Test Intra-LAN Connectivity ===")
     net.ping([net.get('hA1'), net.get('hA2'), net.get('hA3')])
-
-    print("\nLAN C:")
+    net.ping([net.get('hB1'), net.get('hB2'), net.get('hB3')])
     net.ping([net.get('hC1'), net.get('hC2')])
 
-    # Test connectivity across LANs (Ping)
-    print("\n=== Testing connectivity across LANs ===\n")
-    net.ping([net.get('hA1'), net.get('hB1')])  # Example: Ping between LAN A and LAN B
-    net.ping([net.get('hA1'), net.get('hC1')])  # Example: Ping between LAN A and LAN C
+    print("\n=== Test Inter-LAN Connectivity ===")
+    net.ping([net.get('hA1'), net.get('hB1')])
+    net.ping([net.get('hA1'), net.get('hC1')])
+    net.ping([net.get('hB2'), net.get('hC2')])
 
-    # Test with traceroute
-    print("\n=== Traceroute from hA1 to hC1 ===")
-    net.get('hA1').cmd('traceroute 20.10.172.193')
+    print("\n=== Traceroute Example ===")
+    net.get('hA1').cmd('traceroute 20.10.172.194')
 
     CLI(net)
     net.stop()
