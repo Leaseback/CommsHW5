@@ -8,28 +8,28 @@ from mininet.log import setLogLevel
 
 class CustomLAN(Topo):
     def build(self):
-        # Switches for each LAN
-        sA = self.addSwitch('sA')
-        sB = self.addSwitch('sB')
-        sC = self.addSwitch('sC')
+        # Canonical switch names: s1 = LAN B, s2 = LAN A, s3 = LAN C
+        s1 = self.addSwitch('s1')  # LAN B (/25)
+        s2 = self.addSwitch('s2')  # LAN A (/26)
+        s3 = self.addSwitch('s3')  # LAN C (/27)
 
-        # Add hosts to LAN A (/26): 20.10.172.128/26
-        for i in range(1, 4):
-            ip = f'20.10.172.{128 + i}/26'
-            host = self.addHost(f'hA{i}', ip=ip)
-            self.addLink(host, sA)
-
-        # Add hosts to LAN B (/25): 20.10.172.0/25
+        # LAN B: 20.10.172.0/25
         for i in range(1, 4):
             ip = f'20.10.172.{i}/25'
             host = self.addHost(f'hB{i}', ip=ip)
-            self.addLink(host, sB)
+            self.addLink(host, s1)
 
-        # Add hosts to LAN C (/27): 20.10.172.192/27
+        # LAN A: 20.10.172.128/26
+        for i in range(1, 4):
+            ip = f'20.10.172.{128 + i}/26'
+            host = self.addHost(f'hA{i}', ip=ip)
+            self.addLink(host, s2)
+
+        # LAN C: 20.10.172.192/27
         for i in range(1, 3):
             ip = f'20.10.172.{192 + i}/27'
             host = self.addHost(f'hC{i}', ip=ip)
-            self.addLink(host, sC)
+            self.addLink(host, s3)
 
 
 def run():
@@ -39,11 +39,11 @@ def run():
 
     print("\n=== Testing connectivity within each LAN ===\n")
 
-    print("LAN A:")
-    net.ping([net.get('hA1'), net.get('hA2'), net.get('hA3')])
-
-    print("\nLAN B:")
+    print("LAN B:")
     net.ping([net.get('hB1'), net.get('hB2'), net.get('hB3')])
+
+    print("\nLAN A:")
+    net.ping([net.get('hA1'), net.get('hA2'), net.get('hA3')])
 
     print("\nLAN C:")
     net.ping([net.get('hC1'), net.get('hC2')])
