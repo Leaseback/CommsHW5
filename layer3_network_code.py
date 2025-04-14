@@ -37,6 +37,18 @@ def run():
     net = Mininet(topo=topo, link=TCLink)
     net.start()
 
+    print("\n=== Testing connectivity within each LAN ===\n")
+
+    print("LAN A:")
+    net.ping([net.get('hA1'), net.get('hA2'), net.get('hA3')])
+
+    print("\nLAN B:")
+    net.ping([net.get('hB1'), net.get('hB2'), net.get('hB3')])
+
+    print("\nLAN C:")
+    net.ping([net.get('hC1'), net.get('hC2')])
+
+    CLI(net)
     net.stop()
 
 
