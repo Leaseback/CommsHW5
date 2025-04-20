@@ -1,16 +1,15 @@
 from mininet.net import Mininet
-from mininet.node import Controller, OVSKernelSwitch, Node
+from mininet.node import Controller, OVSKernelSwitch, LinuxRouter
 from mininet.topo import Topo
 from mininet.link import TCLink
 from mininet.util import dumpNodeConnections
 
-
 class MyNetwork(Topo):
     def build(self):
-        # Create routers (actually, Hosts acting as routers)
-        rA = self.addNode('rA', cls=Node)
-        rB = self.addNode('rB', cls=Node)
-        rC = self.addNode('rC', cls=Node)
+        # Create routers using LinuxRouter
+        rA = self.addNode('rA', cls=LinuxRouter)
+        rB = self.addNode('rB', cls=LinuxRouter)
+        rC = self.addNode('rC', cls=LinuxRouter)
 
         # Create hosts
         hA1 = self.addHost('hA1')
@@ -33,21 +32,12 @@ class MyNetwork(Topo):
         self.addLink(rC, hC1)
         self.addLink(rC, hC2)
 
-
 def runNetwork():
     net = Mininet(topo=MyNetwork(), controller=Controller, link=TCLink, switch=OVSKernelSwitch)
     net.start()
     dumpNodeConnections(net.hosts)
 
-    # Enable IP forwarding on all routers (hosts acting as routers)
-    rA = net.get('rA')
-    rB = net.get('rB')
-    rC = net.get('rC')
-    rA.cmd('sysctl -w net.ipv4.ip_forward=1')
-    rB.cmd('sysctl -w net.ipv4.ip_forward=1')
-    rC.cmd('sysctl -w net.ipv4.ip_forward=1')
-
-    # Assign IP addresses to the routers and hosts
+    # Assign IP addresses to the hosts
     hA1 = net.get('hA1')
     hA2 = net.get('hA2')
     hB1 = net.get('hB1')
@@ -67,7 +57,6 @@ def runNetwork():
     net.pingAll()  # Ping all hosts, expect LAN-only communication.
 
     net.stop()
-
 
 if __name__ == '__main__':
     runNetwork()
