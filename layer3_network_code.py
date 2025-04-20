@@ -1,62 +1,78 @@
 from mininet.net import Mininet
-from mininet.node import Controller, OVSKernelSwitch, LinuxRouter
+from mininet.node import Host
 from mininet.topo import Topo
+from mininet.cli import CLI
 from mininet.link import TCLink
-from mininet.util import dumpNodeConnections
 
-class MyNetwork(Topo):
+
+class Layer3Topo(Topo):
     def build(self):
-        # Create routers using LinuxRouter
-        rA = self.addNode('rA', cls=LinuxRouter)
-        rB = self.addNode('rB', cls=LinuxRouter)
-        rC = self.addNode('rC', cls=LinuxRouter)
+        # Create routers (as hosts with multiple interfaces)
+        routerA = self.addNode('A', cls=Host)
+        routerB = self.addNode('B', cls=Host)
+        routerC = self.addNode('C', cls=Host)
 
-        # Create hosts
-        hA1 = self.addHost('hA1')
-        hA2 = self.addHost('hA2')
-        hB1 = self.addHost('hB1')
-        hB2 = self.addHost('hB2')
-        hC1 = self.addHost('hC1')
-        hC2 = self.addHost('hC2')
+        # Create hosts for each LAN
+        hostA1 = self.addHost('A1')
+        hostA2 = self.addHost('A2')
+        hostB1 = self.addHost('B1')
+        hostB2 = self.addHost('B2')
+        hostC1 = self.addHost('C1')
+        hostC2 = self.addHost('C2')
 
-        # Connect routers to each other with links
-        self.addLink(rA, rB)
-        self.addLink(rB, rC)
-        self.addLink(rA, rC)
+        # Add links between routers and hosts
+        # LAN A
+        self.addLink(hostA1, routerA, intfName="A1-eth0", params={"ip": "20.10.172.1/26"})
+        self.addLink(hostA2, routerA, intfName="A2-eth0", params={"ip": "20.10.172.2/26"})
 
-        # Connect routers to hosts
-        self.addLink(rA, hA1)
-        self.addLink(rA, hA2)
-        self.addLink(rB, hB1)
-        self.addLink(rB, hB2)
-        self.addLink(rC, hC1)
-        self.addLink(rC, hC2)
+        # LAN B
+        self.addLink(hostB1, routerB, intfName="B1-eth0", params={"ip": "20.10.172.65/25"})
+        self.addLink(hostB2, routerB, intfName="B2-eth0", params={"ip": "20.10.172.66/25"})
 
-def runNetwork():
-    net = Mininet(topo=MyNetwork(), controller=Controller, link=TCLink, switch=OVSKernelSwitch)
+        # LAN C
+        self.addLink(hostC1, routerC, intfName="C1-eth0", params={"ip": "20.10.172.129/27"})
+        self.addLink(hostC2, routerC, intfName="C2-eth0", params={"ip": "20.10.172.130/27"})
+
+        # Links between routers
+        # Inter-router link: A to B
+        self.addLink(routerA, routerB, intfName="A-B", params={"ip": "20.10.100.1/24"})
+        # Inter-router link: B to C
+        self.addLink(routerB, routerC, intfName="B-C", params={"ip": "20.10.100.2/24"})
+        # Inter-router link: A to C
+        self.addLink(routerA, routerC, intfName="A-C", params={"ip": "20.10.100.3/24"})
+
+
+def run():
+    # Create the network from the topology
+    topo = Layer3Topo()
+    net = Mininet(topo=topo, link=TCLink)
+
+    # Start the network
     net.start()
-    dumpNodeConnections(net.hosts)
 
-    # Assign IP addresses to the hosts
-    hA1 = net.get('hA1')
-    hA2 = net.get('hA2')
-    hB1 = net.get('hB1')
-    hB2 = net.get('hB2')
-    hC1 = net.get('hC1')
-    hC2 = net.get('hC2')
+    # Set up static routes on the routers (hosts acting as routers)
+    routerA = net.get('A')
+    routerB = net.get('B')
+    routerC = net.get('C')
 
-    hA1.setIP('20.10.172.129/26')
-    hA2.setIP('20.10.172.130/26')
-    hB1.setIP('20.10.172.1/25')
-    hB2.setIP('20.10.172.2/25')
-    hC1.setIP('20.10.172.193/27')
-    hC2.setIP('20.10.172.194/27')
+    # Add routes manually on the routers
+    routerA.cmd("ip route add 20.10.172.64/25 dev A-B")  # To LAN B
+    routerA.cmd("ip route add 20.10.172.128/27 dev A-C")  # To LAN C
+    routerB.cmd("ip route add 20.10.172.0/26 dev A-B")  # To LAN A
+    routerB.cmd("ip route add 20.10.172.128/27 dev B-C")  # To LAN C
+    routerC.cmd("ip route add 20.10.172.0/26 dev A-C")  # To LAN A
+    routerC.cmd("ip route add 20.10.172.64/25 dev B-C")  # To LAN B
 
-    # Test connectivity within LANs
-    print("Testing connectivity within LANs")
-    net.pingAll()  # Ping all hosts, expect LAN-only communication.
+    # Test reachability (ping all within the same LAN)
+    print("\nTesting connectivity within the same LAN (pingall)...")
+    net.pingAll()
 
+    # Start the Mininet CLI
+    CLI(net)
+
+    # Stop the network
     net.stop()
 
-if __name__ == '__main__':
-    runNetwork()
+
+if __name__ == "__main__":
+    run()
