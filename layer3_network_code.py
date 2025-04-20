@@ -10,6 +10,13 @@ class LinuxRouter(Node):
     def config(self, **params):
         super().config(**params)
         self.cmd('sysctl -w net.ipv4.ip_forward=1')
+        # Ensure interfaces are up
+        self.cmd('ifconfig rA-eth1 up')
+        self.cmd('ifconfig rA-eth2 up')
+        self.cmd('ifconfig rB-eth1 up')
+        self.cmd('ifconfig rB-eth2 up')
+        self.cmd('ifconfig rC-eth1 up')
+        self.cmd('ifconfig rC-eth2 up')
 
     def terminate(self):
         self.cmd('sysctl -w net.ipv4.ip_forward=0')
@@ -77,6 +84,7 @@ def run():
     rC.cmd('ip route add 20.10.172.0/25 via 20.10.100.3')
     rC.cmd('ip route add 20.10.172.128/26 via 20.10.100.6')
 
+    # Check if routing is working with ping
     print("\n=== Testing connectivity within each LAN ===\n")
     print("LAN B:")
     net.ping([net.get('hB1'), net.get('hB2'), net.get('hB3')])
@@ -84,6 +92,13 @@ def run():
     net.ping([net.get('hA1'), net.get('hA2'), net.get('hA3')])
     print("\nLAN C:")
     net.ping([net.get('hC1'), net.get('hC2')])
+
+    # Test inter-LAN pings (ping between hosts in different LANs)
+    print("\n=== Testing inter-LAN connectivity ===\n")
+    print("Ping from hB1 to hA1:")
+    net.ping([net.get('hB1'), net.get('hA1')])
+    print("Ping from hA1 to hC1:")
+    net.ping([net.get('hA1'), net.get('hC1')])
 
     CLI(net)
     net.stop()
