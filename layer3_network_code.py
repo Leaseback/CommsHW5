@@ -7,7 +7,7 @@ from mininet.link import TCLink
 
 class Layer3Topo(Topo):
     def build(self):
-        # Create routers (as hosts with multiple interfaces)
+        # Create routers (hosts with multiple interfaces)
         routerA = self.addNode('A', cls=Host)
         routerB = self.addNode('B', cls=Host)
         routerC = self.addNode('C', cls=Host)
@@ -33,12 +33,9 @@ class Layer3Topo(Topo):
         self.addLink(hostC1, routerC, intfName="C1-eth0", params={"ip": "20.10.172.129/27"})
         self.addLink(hostC2, routerC, intfName="C2-eth0", params={"ip": "20.10.172.130/27"})
 
-        # Links between routers
-        # Inter-router link: A to B
+        # Links between routers (inter-router links)
         self.addLink(routerA, routerB, intfName="A-B", params={"ip": "20.10.100.1/24"})
-        # Inter-router link: B to C
         self.addLink(routerB, routerC, intfName="B-C", params={"ip": "20.10.100.2/24"})
-        # Inter-router link: A to C
         self.addLink(routerA, routerC, intfName="A-C", params={"ip": "20.10.100.3/24"})
 
 
@@ -50,12 +47,17 @@ def run():
     # Start the network
     net.start()
 
-    # Set up static routes on the routers (hosts acting as routers)
+    # Get the routers (hosts)
     routerA = net.get('A')
     routerB = net.get('B')
     routerC = net.get('C')
 
-    # Add routes manually on the routers
+    # Enable IP forwarding on the routers (hosts)
+    routerA.cmd('sysctl -w net.ipv4.ip_forward=1')
+    routerB.cmd('sysctl -w net.ipv4.ip_forward=1')
+    routerC.cmd('sysctl -w net.ipv4.ip_forward=1')
+
+    # Add static routes on the routers (hosts acting as routers)
     routerA.cmd("ip route add 20.10.172.64/25 dev A-B")  # To LAN B
     routerA.cmd("ip route add 20.10.172.128/27 dev A-C")  # To LAN C
     routerB.cmd("ip route add 20.10.172.0/26 dev A-B")  # To LAN A
