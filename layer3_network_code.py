@@ -65,10 +65,6 @@ def run():
     routerC.cmd("ip route add 20.10.172.0/26 dev A-C")  # To LAN A
     routerC.cmd("ip route add 20.10.172.64/25 dev B-C")  # To LAN B
 
-    # Test reachability (ping all within the same LAN)
-    print("\nTesting connectivity within the same LAN (pingall)...")
-    net.pingAll()
-
     # Start the Mininet CLI
     CLI(net)
 
