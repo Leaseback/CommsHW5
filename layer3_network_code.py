@@ -95,9 +95,6 @@ def start():
     r2.cmd('sysctl -w net.ipv4.ip_forward=1')
     r3.cmd('sysctl -w net.ipv4.ip_forward=1')
 
-    print("*** Running ping tests")
-    net.pingAll()
-
     print("*** Dropping to CLI")
     CLI(net)
 
