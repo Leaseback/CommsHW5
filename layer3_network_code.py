@@ -71,7 +71,7 @@ def start():
     r3.cmd('ip route add 20.10.100.0/24 via 20.10.100.1')  # Route to r1
     r3.cmd('ip route add 20.10.100.0/24 via 20.10.100.3')  # Route to r2
 
-    print("*** Configuring hosts")
+    # Host setup
     # LAN A
     hA1.setIP('20.10.100.10/24')
     hA2.setIP('20.10.100.11/24')
@@ -90,15 +90,13 @@ def start():
     hC1.cmd('ip route add default via 20.10.100.5')
     hC2.cmd('ip route add default via 20.10.100.5')
 
-    print("*** Enabling IP forwarding on routers")
+    # Router rules
     r1.cmd('sysctl -w net.ipv4.ip_forward=1')
     r2.cmd('sysctl -w net.ipv4.ip_forward=1')
     r3.cmd('sysctl -w net.ipv4.ip_forward=1')
 
-    print("*** Dropping to CLI")
     CLI(net)
 
-    print("*** Stopping network")
     net.stop()
 
 
