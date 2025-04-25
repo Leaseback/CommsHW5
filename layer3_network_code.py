@@ -61,6 +61,16 @@ def start():
     r3.setIP('20.10.100.5/24', intf='r3-eth0')  # Router 3 eth0 -> LAN C
     r3.setIP('20.10.100.6/24', intf='r3-eth1')  # Router 3 eth1 -> LAN A
 
+    # Set up routing between routers (static routes)
+    r1.cmd('ip route add 20.10.100.0/24 via 20.10.100.3')  # Route to r2
+    r1.cmd('ip route add 20.10.100.0/24 via 20.10.100.5')  # Route to r3
+
+    r2.cmd('ip route add 20.10.100.0/24 via 20.10.100.1')  # Route to r1
+    r2.cmd('ip route add 20.10.100.0/24 via 20.10.100.5')  # Route to r3
+
+    r3.cmd('ip route add 20.10.100.0/24 via 20.10.100.1')  # Route to r1
+    r3.cmd('ip route add 20.10.100.0/24 via 20.10.100.3')  # Route to r2
+
     print("*** Configuring hosts")
     # LAN A
     hA1.setIP('20.10.100.10/24')
