@@ -1,91 +1,99 @@
 from mininet.net import Mininet
-from mininet.node import Host
-from mininet.topo import Topo
-from mininet.cli import CLI
+from mininet.node import Controller
 from mininet.link import TCLink
+from mininet.cli import CLI
 
 
-class Layer3Topo(Topo):
-    def build(self):
-        # Create routers (as hosts)
-        routerA = self.addHost('A')
-        routerB = self.addHost('B')
-        routerC = self.addHost('C')
+def start():
+    """Creates a LAN network with 3 subnets A, B, and C, and connects 3 routers
 
-        # Create hosts
-        hostA1 = self.addHost('A1', ip='20.10.172.1/26')
-        hostA2 = self.addHost('A2', ip='20.10.172.2/26')
-        hostB1 = self.addHost('B1', ip='20.10.172.65/25')
-        hostB2 = self.addHost('B2', ip='20.10.172.66/25')
-        hostC1 = self.addHost('C1', ip='20.10.172.193/27')
-        hostC2 = self.addHost('C2', ip='20.10.172.194/27')
+    Args:
+    """
 
-        # Create switches (LANs)
-        switchA = self.addSwitch('s1')
-        switchB = self.addSwitch('s2')
-        switchC = self.addSwitch('s3')
+    net = Mininet(controller=Controller, link=TCLink)
 
-        # Connect LAN A
-        self.addLink(hostA1, switchA)
-        self.addLink(hostA2, switchA)
-        self.addLink(routerA, switchA)
+    print("*** Adding controller")
+    net.addController('c0')
 
-        # Connect LAN B
-        self.addLink(hostB1, switchB)
-        self.addLink(hostB2, switchB)
-        self.addLink(routerB, switchB)
+    # Make the switches
+    # Use s1 s2 s3 since mininet doesn't support sA etc name scheme
+    s1 = net.addSwitch('s1')  # LAN A
+    s2 = net.addSwitch('s2')  # LAN B
+    s3 = net.addSwitch('s3')  # LAN C
 
-        # Connect LAN C
-        self.addLink(hostC1, switchC)
-        self.addLink(hostC2, switchC)
-        self.addLink(routerC, switchC)
+    # Adding routers
+    r1 = net.addHost('r1')  # Router 1
+    r2 = net.addHost('r2')  # Router 2
+    r3 = net.addHost('r3')  # Router 3
 
-        # Connect routers directly
-        self.addLink(routerA, routerB)  # A-eth1 <-> B-eth1
-        self.addLink(routerB, routerC)  # B-eth2 <-> C-eth1
-        self.addLink(routerA, routerC)  # A-eth2 <-> C-eth2
+    # Hosts
+    hB1 = net.addHost('hB1')
+    hB2 = net.addHost('hB2')
+    hA1 = net.addHost('hA1')
+    hA2 = net.addHost('hA2')
+    hC1 = net.addHost('hC1')
+    hC2 = net.addHost('hC2')
 
+    # Connect routers to switches
+    net.addLink(r1, s1)  # eth0 -> LAN A
+    net.addLink(r1, s2)  # eth1 -> LAN B
+    net.addLink(r2, s2)  # eth0 -> LAN B
+    net.addLink(r2, s3)  # eth1 -> LAN C
+    net.addLink(r3, s3)  # eth0 -> LAN C
+    net.addLink(r3, s1)  # eth1 -> LAN A
 
-def run():
-    topo = Layer3Topo()
-    net = Mininet(topo=topo, link=TCLink)
+    # Connect hosts to switches
+    net.addLink(hA1, s1)
+    net.addLink(hA2, s1)
+    net.addLink(hB1, s2)
+    net.addLink(hB2, s2)
+    net.addLink(hC1, s3)
+    net.addLink(hC2, s3)
+
+    print("*** Starting network")
     net.start()
 
-    # Get routers
-    routerA = net.get('A')
-    routerB = net.get('B')
-    routerC = net.get('C')
+    print("*** Configuring router interfaces")
+    r1.setIP('20.10.100.1/24', intf='r1-eth0')  # Router 1 eth0 -> LAN A
+    r1.setIP('20.10.100.2/24', intf='r1-eth1')  # Router 1 eth1 -> LAN B
+    r2.setIP('20.10.100.3/24', intf='r2-eth0')  # Router 2 eth0 -> LAN B
+    r2.setIP('20.10.100.4/24', intf='r2-eth1')  # Router 2 eth1 -> LAN C
+    r3.setIP('20.10.100.5/24', intf='r3-eth0')  # Router 3 eth0 -> LAN C
+    r3.setIP('20.10.100.6/24', intf='r3-eth1')  # Router 3 eth1 -> LAN A
 
-    # Assign LAN IPs to routers
-    routerA.setIP('20.10.172.3/26', intf='A-eth0')
-    routerB.setIP('20.10.172.67/25', intf='B-eth0')
-    routerC.setIP('20.10.172.195/27', intf='C-eth0')
+    print("*** Configuring hosts")
+    # LAN A
+    hA1.setIP('20.10.100.10/24')
+    hA2.setIP('20.10.100.11/24')
+    hA1.cmd('ip route add default via 20.10.100.1')
+    hA2.cmd('ip route add default via 20.10.100.1')
 
-    # Assign inter-router IPs
-    routerA.setIP('20.10.100.1/24', intf='A-eth1')  # A <-> B
-    routerA.setIP('20.10.100.3/24', intf='A-eth2')  # A <-> C
-    routerB.setIP('20.10.100.2/24', intf='B-eth1')  # B <-> A
-    routerB.setIP('20.10.100.4/24', intf='B-eth2')  # B <-> C
-    routerC.setIP('20.10.100.5/24', intf='C-eth1')  # C <-> B
-    routerC.setIP('20.10.100.6/24', intf='C-eth2')  # C <-> A
+    # LAN B
+    hB1.setIP('20.10.100.20/24')
+    hB2.setIP('20.10.100.21/24')
+    hB1.cmd('ip route add default via 20.10.100.3')
+    hB2.cmd('ip route add default via 20.10.100.3')
 
-    # Enable IP forwarding
-    for router in (routerA, routerB, routerC):
-        router.cmd('sysctl -w net.ipv4.ip_forward=1')
+    # LAN C
+    hC1.setIP('20.10.100.30/24')
+    hC2.setIP('20.10.100.31/24')
+    hC1.cmd('ip route add default via 20.10.100.5')
+    hC2.cmd('ip route add default via 20.10.100.5')
 
-    # Add static routes
-    routerA.cmd('ip route add 20.10.172.64/25 via 20.10.100.2 dev A-eth1')  # To LAN B
-    routerA.cmd('ip route add 20.10.172.192/27 via 20.10.100.6 dev A-eth2')  # To LAN C
+    print("*** Enabling IP forwarding on routers")
+    r1.cmd('sysctl -w net.ipv4.ip_forward=1')
+    r2.cmd('sysctl -w net.ipv4.ip_forward=1')
+    r3.cmd('sysctl -w net.ipv4.ip_forward=1')
 
-    routerB.cmd('ip route add 20.10.172.0/26 via 20.10.100.1 dev B-eth1')  # To LAN A
-    routerB.cmd('ip route add 20.10.172.192/27 via 20.10.100.5 dev B-eth2')  # To LAN C
+    print("*** Running ping tests")
+    net.pingAll()
 
-    routerC.cmd('ip route add 20.10.172.0/26 via 20.10.100.3 dev C-eth2')  # To LAN A
-    routerC.cmd('ip route add 20.10.172.64/25 via 20.10.100.4 dev C-eth1')  # To LAN B
-
+    print("*** Dropping to CLI")
     CLI(net)
+
+    print("*** Stopping network")
     net.stop()
 
 
 if __name__ == '__main__':
-    run()
+    start()
