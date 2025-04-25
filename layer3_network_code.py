@@ -7,12 +7,12 @@ from mininet.link import TCLink
 
 class Layer3Topo(Topo):
     def build(self):
-        # Routers
+        # Create routers (as hosts)
         routerA = self.addHost('A')
         routerB = self.addHost('B')
         routerC = self.addHost('C')
 
-        # Hosts
+        # Create hosts
         hostA1 = self.addHost('A1', ip='20.10.172.1/26')
         hostA2 = self.addHost('A2', ip='20.10.172.2/26')
         hostB1 = self.addHost('B1', ip='20.10.172.65/25')
@@ -20,18 +20,30 @@ class Layer3Topo(Topo):
         hostC1 = self.addHost('C1', ip='20.10.172.193/27')
         hostC2 = self.addHost('C2', ip='20.10.172.194/27')
 
-        # LAN links
-        self.addLink(hostA1, routerA)
-        self.addLink(hostA2, routerA)
-        self.addLink(hostB1, routerB)
-        self.addLink(hostB2, routerB)
-        self.addLink(hostC1, routerC)
-        self.addLink(hostC2, routerC)
+        # Create switches (LANs)
+        switchA = self.addSwitch('s1')
+        switchB = self.addSwitch('s2')
+        switchC = self.addSwitch('s3')
 
-        # Inter-router links
-        self.addLink(routerA, routerB)
-        self.addLink(routerB, routerC)
-        self.addLink(routerA, routerC)
+        # Connect LAN A
+        self.addLink(hostA1, switchA)
+        self.addLink(hostA2, switchA)
+        self.addLink(routerA, switchA)
+
+        # Connect LAN B
+        self.addLink(hostB1, switchB)
+        self.addLink(hostB2, switchB)
+        self.addLink(routerB, switchB)
+
+        # Connect LAN C
+        self.addLink(hostC1, switchC)
+        self.addLink(hostC2, switchC)
+        self.addLink(routerC, switchC)
+
+        # Connect routers directly
+        self.addLink(routerA, routerB)  # A-eth1 <-> B-eth1
+        self.addLink(routerB, routerC)  # B-eth2 <-> C-eth1
+        self.addLink(routerA, routerC)  # A-eth2 <-> C-eth2
 
 
 def run():
@@ -39,42 +51,37 @@ def run():
     net = Mininet(topo=topo, link=TCLink)
     net.start()
 
-    # Routers
-    A = net.get('A')
-    B = net.get('B')
-    C = net.get('C')
+    # Get routers
+    routerA = net.get('A')
+    routerB = net.get('B')
+    routerC = net.get('C')
+
+    # Assign LAN IPs to routers
+    routerA.setIP('20.10.172.3/26', intf='A-eth0')
+    routerB.setIP('20.10.172.67/25', intf='B-eth0')
+    routerC.setIP('20.10.172.195/27', intf='C-eth0')
+
+    # Assign inter-router IPs
+    routerA.setIP('20.10.100.1/24', intf='A-eth1')  # A <-> B
+    routerA.setIP('20.10.100.3/24', intf='A-eth2')  # A <-> C
+    routerB.setIP('20.10.100.2/24', intf='B-eth1')  # B <-> A
+    routerB.setIP('20.10.100.4/24', intf='B-eth2')  # B <-> C
+    routerC.setIP('20.10.100.5/24', intf='C-eth1')  # C <-> B
+    routerC.setIP('20.10.100.6/24', intf='C-eth2')  # C <-> A
 
     # Enable IP forwarding
-    for r in [A, B, C]:
-        r.cmd('sysctl -w net.ipv4.ip_forward=1')
-
-    # Assign router interface IPs
-    A.setIP('20.10.172.3/26', intf='A-eth0')  # To A1
-    A.setIP('20.10.172.4/26', intf='A-eth1')  # To A2
-    A.setIP('20.10.100.1/24', intf='A-eth2')  # To B
-    A.setIP('20.10.100.3/24', intf='A-eth3')  # To C
-
-    B.setIP('20.10.172.67/25', intf='B-eth0')  # To B1
-    B.setIP('20.10.172.68/25', intf='B-eth1')  # To B2
-    B.setIP('20.10.100.2/24', intf='B-eth2')  # To A
-    B.setIP('20.10.100.4/24', intf='B-eth3')  # To C
-
-    C.setIP('20.10.172.195/27', intf='C-eth0')  # To C1
-    C.setIP('20.10.172.196/27', intf='C-eth1')  # To C2
-    C.setIP('20.10.100.5/24', intf='C-eth2')  # To A
-    C.setIP('20.10.100.6/24', intf='C-eth3')  # To B
+    for router in (routerA, routerB, routerC):
+        router.cmd('sysctl -w net.ipv4.ip_forward=1')
 
     # Add static routes
-    A.cmd("ip route add 20.10.172.64/25 via 20.10.100.2 dev A-eth2")
-    A.cmd("ip route add 20.10.172.192/27 via 20.10.100.6 dev A-eth3")
+    routerA.cmd('ip route add 20.10.172.64/25 via 20.10.100.2 dev A-eth1')  # To LAN B
+    routerA.cmd('ip route add 20.10.172.192/27 via 20.10.100.6 dev A-eth2')  # To LAN C
 
-    B.cmd("ip route add 20.10.172.0/26 via 20.10.100.1 dev B-eth2")
-    B.cmd("ip route add 20.10.172.192/27 via 20.10.100.6 dev B-eth3")
+    routerB.cmd('ip route add 20.10.172.0/26 via 20.10.100.1 dev B-eth1')  # To LAN A
+    routerB.cmd('ip route add 20.10.172.192/27 via 20.10.100.5 dev B-eth2')  # To LAN C
 
-    C.cmd("ip route add 20.10.172.0/26 via 20.10.100.3 dev C-eth2")
-    C.cmd("ip route add 20.10.172.64/25 via 20.10.100.4 dev C-eth3")
-
-
+    routerC.cmd('ip route add 20.10.172.0/26 via 20.10.100.3 dev C-eth2')  # To LAN A
+    routerC.cmd('ip route add 20.10.172.64/25 via 20.10.100.4 dev C-eth1')  # To LAN B
 
     CLI(net)
     net.stop()
